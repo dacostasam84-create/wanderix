@@ -1,6 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import Prisma from '@prisma/client';
-const { PrismaClient } = Prisma;
+import { PrismaClient } from '@prisma/client/default';
 import {
   HotelModel,
   HotelResponse,
