@@ -340,3 +340,57 @@ async def avatar_welcome(gender: str = 'female', language: str = 'en', destinati
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+# ─────────────────────────────────────────
+# HOTEL SEARCH ROUTES (Booking.com)
+# ─────────────────────────────────────────
+
+from core.hotel_search import HotelSearchService
+from pydantic import BaseModel as PydanticBaseModel
+
+hotel_search = HotelSearchService()
+
+class HotelSearchReq(PydanticBaseModel):
+    destination: str
+    checkin: str
+    checkout: str
+    adults: int = 2
+    language: str = "en"
+    currency: str = "USD"
+    min_price: int = None
+    max_price: int = None
+    stars: int = None
+    limit: int = 10
+
+@app.post("/hotels/search")
+async def search_hotels(
+    req: HotelSearchReq,
+    _: str = Depends(verify_internal_key),
+):
+    try:
+        hotels = await hotel_search.search_hotels(
+            destination=req.destination,
+            checkin=req.checkin,
+            checkout=req.checkout,
+            adults=req.adults,
+            language=req.language,
+            currency=req.currency,
+            min_price=req.min_price,
+            max_price=req.max_price,
+            stars=req.stars,
+            limit=req.limit,
+        )
+        return {"hotels": hotels, "total": len(hotels), "source": "booking.com"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/hotels/destination")
+async def search_destination(
+    query: str,
+    language: str = "en",
+    _: str = Depends(verify_internal_key),
+):
+    try:
+        result = await hotel_search.search_destination(query, language)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
