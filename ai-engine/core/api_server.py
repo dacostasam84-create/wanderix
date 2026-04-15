@@ -452,3 +452,65 @@ async def respond_in_language(req: RespondInLanguageReq, _: str = Depends(verify
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+        # ─────────────────────────────────────────
+# D-ID AVATAR VIDEO ROUTES
+# ─────────────────────────────────────────
+
+from core.did_avatar import DIDAvatarService
+
+did_service = DIDAvatarService()
+
+class DIDChatReq(PydanticBaseModel):
+    message: str
+    gender: str = "female"
+    language: str = "en"
+    destination: str = None
+    conversation_history: list = []
+
+class DIDWelcomeReq(PydanticBaseModel):
+    gender: str = "female"
+    language: str = "en"
+    destination: str = None
+
+@app.post("/avatar/video/chat")
+async def avatar_video_chat(
+    req: DIDChatReq,
+    _: str = Depends(verify_internal_key),
+):
+    try:
+        result = await did_service.avatar_chat_with_video(
+            message=req.message,
+            gender=req.gender,
+            language=req.language,
+            destination=req.destination,
+            conversation_history=req.conversation_history,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/avatar/video/welcome")
+async def avatar_video_welcome(
+    req: DIDWelcomeReq,
+    _: str = Depends(verify_internal_key),
+):
+    try:
+        result = await did_service.welcome_with_video(
+            gender=req.gender,
+            language=req.language,
+            destination=req.destination,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/avatar/video/status/{talk_id}")
+async def avatar_video_status(
+    talk_id: str,
+    _: str = Depends(verify_internal_key),
+):
+    try:
+        result = await did_service.get_video_status(talk_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
