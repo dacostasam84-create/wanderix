@@ -237,28 +237,27 @@ async def search_destination(query: str, language: str = "en", _: str = Depends(
 async def get_languages(_: str = Depends(verify_internal_key)):
     langs = universal_lang.get_supported_languages()
     return {"languages": langs, "total": len(langs)}
-
 @app.post("/language/detect")
 async def detect_language(req: DetectLanguageReq, _: str = Depends(verify_internal_key)):
     try:
-        return universal_lang.detect_language(req.text)
+        return await universal_lang.detect_language(req.text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/language/translate")
 async def translate_universal(req: TranslateUniversalReq, _: str = Depends(verify_internal_key)):
     try:
-        return universal_lang.translate(text=req.text, target_language=req.target_language, context=req.context, source_language=req.source_language)
+        return await universal_lang.translate(text=req.text, target_language=req.target_language, context=req.context, source_language=req.source_language)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/language/respond")
 async def respond_in_language(req: RespondInLanguageReq, _: str = Depends(verify_internal_key)):
     try:
-        return universal_lang.respond_in_language(user_message=req.user_message, system_prompt=req.system_prompt, detected_language=req.detected_language)
+        return await universal_lang.respond_in_language(user_message=req.user_message, system_prompt=req.system_prompt, detected_language=req.detected_language)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
+    
 @app.post("/avatar/video/chat")
 async def avatar_video_chat(req: DIDChatReq, _: str = Depends(verify_internal_key)):
     try:
