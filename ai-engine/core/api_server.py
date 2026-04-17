@@ -142,7 +142,8 @@ def health():
 
 @app.get("/map", response_class=HTMLResponse)
 async def map_page():
-    with open("C:/WANDERIX/ai-engine/core/static/map.html", "r", encoding="utf-8") as f:
+    map_path = os.path.join(os.path.dirname(__file__), "static", "map.html")
+    with open(map_path, "r", encoding="utf-8") as f:
         return f.read()
 
 @app.post("/ai/itinerary")
