@@ -2,7 +2,7 @@ import os
 import logging
 from fastapi import FastAPI, HTTPException, Header, Depends, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, HTMLResponse
 from pydantic import BaseModel
 from typing import Optional
 from core.prompt_builder import PromptBuilder, UserContext, Language
@@ -12,24 +12,16 @@ from core.hotel_search import HotelSearchService
 from core.universal_language import UniversalLanguageService
 from core.did_avatar import DIDAvatarService
 from core.voice_ai import VoiceAIService
+from core.vision_ai import VisionAIService
+from core.map_service import MapService
 import anthropic
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="Wanderix AI Engine",
-    description="Cerveau IA multilingue de Wanderix",
-    version="1.0.0",
-)
+app = FastAPI(title="Wanderix AI Engine", description="Cerveau IA multilingue de Wanderix", version="1.0.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 prompt_builder = PromptBuilder()
 translation_layer = TranslationLayer()
@@ -39,7 +31,8 @@ hotel_search = HotelSearchService()
 universal_lang = UniversalLanguageService()
 did_service = DIDAvatarService()
 voice_service = VoiceAIService()
-
+vision_service = VisionAIService()
+map_service = MapService()
 
 def verify_internal_key(x_internal_key: str = Header(...)):
     expected = os.environ.get("INTERNAL_API_KEY")
@@ -47,16 +40,12 @@ def verify_internal_key(x_internal_key: str = Header(...)):
         raise HTTPException(status_code=401, detail="Unauthorized")
     return x_internal_key
 
-
 def build_context(language, nationality=None, travel_style=None, interests=None, budget=None, trip_duration=None, group_type=None):
     try:
         lang = Language(language)
     except ValueError:
         lang = Language.EN
     return UserContext(language=lang, nationality=nationality, travel_style=travel_style, interests=interests, budget=budget, trip_duration=trip_duration, group_type=group_type)
-
-
-# ── Models ──────────────────────────────
 
 class ItineraryRequest(BaseModel):
     destination: str
@@ -147,12 +136,14 @@ class DIDWelcomeReq(BaseModel):
     language: str = "en"
     destination: Optional[str] = None
 
-
-# ── Routes ──────────────────────────────
-
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "wanderix-ai-engine"}
+
+@app.get("/map", response_class=HTMLResponse)
+async def map_page():
+    with open("C:/WANDERIX/ai-engine/core/static/map.html", "r", encoding="utf-8") as f:
+        return f.read()
 
 @app.post("/ai/itinerary")
 async def generate_itinerary(req: ItineraryRequest, _: str = Depends(verify_internal_key)):
@@ -303,5 +294,43 @@ async def speak(text: str = Form(...), language: str = Form(default="en"), voice
         if not audio_bytes:
             raise HTTPException(status_code=500, detail="TTS failed")
         return Response(content=audio_bytes, media_type="audio/mpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/vision/analyze")
+async def analyze_photo(file: UploadFile = File(...), language: str = Form(default="en"), _: str = Depends(verify_internal_key)):
+    try:
+        image_data = await file.read()
+        return await vision_service.analyze_travel_photo(image_data=image_data, language=language, media_type=file.content_type or "image/jpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/vision/hotel")
+async def identify_hotel(file: UploadFile = File(...), language: str = Form(default="en"), _: str = Depends(verify_internal_key)):
+    try:
+        image_data = await file.read()
+        return await vision_service.identify_hotel(image_data=image_data, language=language, media_type=file.content_type or "image/jpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/vision/describe")
+async def describe_photo(file: UploadFile = File(...), language: str = Form(default="en"), style: str = Form(default="inspiring"), _: str = Depends(verify_internal_key)):
+    try:
+        image_data = await file.read()
+        return await vision_service.generate_photo_description(image_data=image_data, language=language, media_type=file.content_type or "image/jpeg", style=style)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/map/data")
+async def get_map_data(destination: str, checkin: str, checkout: str, language: str = "en", currency: str = "USD", limit: int = 20, _: str = Depends(verify_internal_key)):
+    try:
+        return await map_service.get_map_data(destination=destination, checkin=checkin, checkout=checkout, language=language, currency=currency, limit=limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/map/destinations")
+async def get_destinations(_: str = Depends(verify_internal_key)):
+    try:
+        return {"destinations": map_service.get_all_destinations(), "total": len(map_service.get_all_destinations())}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

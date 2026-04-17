@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wanderix — Map IA</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; height: 100vh; display: flex; flex-direction: column; }
+  #header { background: linear-gradient(135deg, #1e3a5f, #0f172a); padding: 16px 24px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #1e40af; }
+  #header h1 { font-size: 24px; font-weight: 700; background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  #controls { display: flex; gap: 12px; flex: 1; align-items: center; flex-wrap: wrap; }
+  #controls select, #controls input { background: #1e293b; border: 1px solid #334155; color: white; padding: 8px 12px; border-radius: 8px; font-size: 14px; outline: none; }
+  #controls select:focus, #controls input:focus { border-color: #60a5fa; }
+  #search-btn { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  #search-btn:hover { opacity: 0.9; }
+  #map-container { flex: 1; position: relative; }
+  #map { width: 100%; height: 100%; }
+  #sidebar { position: absolute; right: 16px; top: 16px; width: 320px; max-height: calc(100vh - 120px); overflow-y: auto; z-index: 1000; display: flex; flex-direction: column; gap: 12px; }
+  .hotel-card { background: rgba(15, 23, 42, 0.95); border: 1px solid #1e40af; border-radius: 12px; padding: 16px; backdrop-filter: blur(10px); }
+  .hotel-card h3 { font-size: 15px; font-weight: 600; color: #60a5fa; margin-bottom: 8px; }
+  .hotel-card .rating { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .hotel-card .rating span { background: #1e40af; color: #93c5fd; padding: 2px 8px; border-radius: 6px; font-size: 13px; font-weight: 600; }
+  .hotel-card .price { font-size: 18px; font-weight: 700; color: #34d399; }
+  .hotel-card .address { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+  .hotel-card a { display: block; margin-top: 10px; background: #3b82f6; color: white; text-align: center; padding: 8px; border-radius: 8px; text-decoration: none; font-size: 13px; }
+  .hotel-card a:hover { background: #2563eb; }
+  #stats { position: absolute; left: 16px; bottom: 16px; background: rgba(15, 23, 42, 0.9); border: 1px solid #1e40af; border-radius: 10px; padding: 12px 16px; z-index: 1000; font-size: 13px; color: #94a3b8; }
+  #stats strong { color: #60a5fa; }
+  #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.95); border: 1px solid #3b82f6; border-radius: 12px; padding: 24px 32px; z-index: 2000; text-align: center; display: none; }
+  #loading .spinner { width: 40px; height: 40px; border: 3px solid #1e40af; border-top-color: #60a5fa; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .leaflet-popup-content-wrapper { background: #0f172a; border: 1px solid #1e40af; color: white; border-radius: 10px; }
+  .leaflet-popup-tip { background: #0f172a; }
+  .popup-content h4 { color: #60a5fa; margin-bottom: 6px; font-size: 14px; }
+  .popup-content .popup-price { color: #34d399; font-weight: 700; font-size: 16px; }
+  .popup-content .popup-rating { color: #fbbf24; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🌍 Wanderix Map IA</h1>
+  <div id="controls">
+    <select id="dest-select">
+      <option value="">— Select destination —</option>
+    </select>
+    <input type="date" id="checkin" />
+    <input type="date" id="checkout" />
+    <select id="currency">
+      <option value="USD">USD $</option>
+      <option value="EUR">EUR €</option>
+      <option value="GBP">GBP £</option>
+      <option value="MAD">MAD</option>
+    </select>
+    <button id="search-btn" onclick="searchHotels()">🔍 Search Hotels</button>
+  </div>
+</div>
+
+<div id="map-container">
+  <div id="map"></div>
+  <div id="sidebar"></div>
+  <div id="stats">Ready to search</div>
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Searching hotels on Booking.com...</p>
+  </div>
+</div>
+
+<script>
+const API_KEY = 'wanderix_internal_key';
+const API_URL = 'http://localhost:5009';
+
+// Init map
+const map = L.map('map').setView([20, 0], 2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap',
+  className: 'map-tiles'
+}).addTo(map);
+
+let markers = [];
+let destinations = [];
+
+// Set default dates
+const today = new Date();
+const checkin = new Date(today);
+checkin.setDate(today.getDate() + 7);
+const checkout = new Date(checkin);
+checkout.setDate(checkin.getDate() + 3);
+
+document.getElementById('checkin').value = checkin.toISOString().split('T')[0];
+document.getElementById('checkout').value = checkout.toISOString().split('T')[0];
+
+// Load destinations
+async function loadDestinations() {
+  try {
+    const res = await fetch(`${API_URL}/map/destinations`, {
+      headers: { 'x-internal-key': API_KEY }
+    });
+    const data = await res.json();
+    destinations = data.destinations;
+    
+    const select = document.getElementById('dest-select');
+    destinations.forEach(dest => {
+      const option = document.createElement('option');
+      option.value = dest.key;
+      option.textContent = `${dest.name}, ${dest.country}`;
+      select.appendChild(option);
+    });
+
+    // Add destination markers
+    destinations.forEach(dest => {
+      const marker = L.circleMarker([dest.lat, dest.lng], {
+        radius: 8,
+        fillColor: '#3b82f6',
+        color: '#1e40af',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.8,
+      }).addTo(map);
+      
+      marker.bindTooltip(`<b>${dest.name}</b><br>${dest.country}`, {
+        permanent: false,
+        direction: 'top'
+      });
+      
+      marker.on('click', () => {
+        document.getElementById('dest-select').value = dest.key;
+        searchHotels();
+      });
+    });
+  } catch(e) {
+    console.error('Load destinations error:', e);
+  }
+}
+
+// Search hotels
+async function searchHotels() {
+  const dest = document.getElementById('dest-select').value;
+  const checkin = document.getElementById('checkin').value;
+  const checkout = document.getElementById('checkout').value;
+  const currency = document.getElementById('currency').value;
+  
+  if (!dest || !checkin || !checkout) {
+    alert('Please select destination and dates');
+    return;
+  }
+
+  // Show loading
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('sidebar').innerHTML = '';
+  
+  // Clear old markers
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+
+  try {
+    const res = await fetch(
+      `${API_URL}/map/data?destination=${dest}&checkin=${checkin}&checkout=${checkout}&currency=${currency}&limit=20`,
+      { headers: { 'x-internal-key': API_KEY } }
+    );
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    // Center map
+    map.setView([data.center.lat, data.center.lng], data.center.zoom);
+
+    // Add hotel markers
+    data.markers.forEach(hotel => {
+      const icon = L.divIcon({
+        html: `<div style="background:${hotel.color};color:white;padding:4px 8px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3)">
+          ${hotel.currency === 'EUR' ? '€' : '$'}${Math.round(hotel.price)}
+        </div>`,
+        className: '',
+        iconAnchor: [20, 10],
+      });
+
+      const marker = L.marker([hotel.lat, hotel.lng], { icon }).addTo(map);
+      
+      marker.bindPopup(`
+        <div class="popup-content">
+          <h4>${hotel.name}</h4>
+          <div class="popup-rating">⭐ ${hotel.rating} (${hotel.stars}★)</div>
+          <div class="popup-price">${hotel.currency === 'EUR' ? '€' : '$'}${hotel.price}/night</div>
+          <p style="font-size:11px;color:#94a3b8;margin-top:4px">${hotel.address}</p>
+          <a href="${hotel.url}" target="_blank" style="display:block;margin-top:8px;background:#3b82f6;color:white;text-align:center;padding:6px;border-radius:6px;text-decoration:none;font-size:12px">Book on Booking.com</a>
+        </div>
+      `);
+
+      marker.on('click', () => showHotelCard(hotel));
+      markers.push(marker);
+    });
+
+    // Show sidebar cards
+    const sidebar = document.getElementById('sidebar');
+    data.markers.slice(0, 8).forEach(hotel => {
+      const card = document.createElement('div');
+      card.className = 'hotel-card';
+      card.innerHTML = `
+        <h3>${hotel.name}</h3>
+        <div class="rating">
+          <span>⭐ ${hotel.rating}</span>
+          <span>${hotel.stars}★</span>
+        </div>
+        <div class="price">${hotel.currency === 'EUR' ? '€' : '$'}${hotel.price}<small style="font-size:13px;color:#94a3b8">/night</small></div>
+        <div class="address">📍 ${hotel.address}</div>
+        <a href="${hotel.url}" target="_blank">Book on Booking.com →</a>
+      `;
+      card.addEventListener('click', () => {
+        map.setView([hotel.lat, hotel.lng], 16);
+      });
+      sidebar.appendChild(card);
+    });
+
+    document.getElementById('stats').innerHTML = `
+      <strong>${data.total}</strong> hotels found in <strong>${data.destination}</strong>
+    `;
+
+  } catch(e) {
+    document.getElementById('stats').innerHTML = `Error: ${e.message}`;
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+  }
+}
+
+function showHotelCard(hotel) {
+  const sidebar = document.getElementById('sidebar');
+  const existing = document.getElementById(`hotel-${hotel.id}`);
+  if (existing) {
+    existing.scrollIntoView({ behavior: 'smooth' });
+    existing.style.border = '1px solid #60a5fa';
+    setTimeout(() => existing.style.border = '1px solid #1e40af', 2000);
+  }
+}
+
+// Init
+loadDestinations();
+</script>
+</body>
+</html>
