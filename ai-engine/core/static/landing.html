@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wanderix — AI Travel Platform</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --primary: #3b82f6;
+  --secondary: #8b5cf6;
+  --accent: #22c55e;
+  --dark: #0f172a;
+  --dark2: #1e293b;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+}
+body { font-family: 'Segoe UI', sans-serif; background: var(--dark); color: var(--text); overflow-x: hidden; }
+
+/* NAV */
+nav { position: fixed; top: 0; width: 100%; z-index: 1000; background: rgba(15,23,42,0.9); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(59,130,246,0.2); padding: 16px 40px; display: flex; align-items: center; justify-content: space-between; }
+.logo { font-size: 24px; font-weight: 800; background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.nav-links { display: flex; gap: 32px; }
+.nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; transition: color 0.3s; }
+.nav-links a:hover { color: var(--text); }
+.nav-cta { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; border: none; padding: 10px 24px; border-radius: 25px; cursor: pointer; font-size: 14px; font-weight: 600; }
+
+/* HERO */
+#hero { height: 100vh; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#map-bg { position: absolute; inset: 0; z-index: 0; opacity: 0.3; }
+.hero-overlay { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(15,23,42,0.6) 50%, rgba(15,23,42,0.9) 100%); z-index: 1; }
+.hero-content { position: relative; z-index: 2; text-align: center; max-width: 900px; padding: 0 24px; }
+.hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); padding: 8px 20px; border-radius: 25px; font-size: 13px; color: #60a5fa; margin-bottom: 32px; }
+.hero-badge span { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+h1 { font-size: clamp(40px, 6vw, 80px); font-weight: 900; line-height: 1.1; margin-bottom: 24px; }
+h1 span { background: linear-gradient(135deg, #60a5fa, #a78bfa, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-sub { font-size: 18px; color: var(--muted); margin-bottom: 48px; max-width: 600px; margin-left: auto; margin-right: auto; line-height: 1.7; }
+
+/* SEARCH BOX */
+.search-box { background: rgba(30,41,59,0.95); border: 1px solid rgba(59,130,246,0.3); border-radius: 20px; padding: 24px; max-width: 800px; margin: 0 auto; backdrop-filter: blur(20px); }
+.search-tabs { display: flex; gap: 4px; margin-bottom: 20px; background: rgba(15,23,42,0.5); border-radius: 12px; padding: 4px; }
+.search-tab { flex: 1; padding: 10px; border: none; background: transparent; color: var(--muted); border-radius: 10px; cursor: pointer; font-size: 14px; transition: all 0.3s; }
+.search-tab.active { background: var(--primary); color: white; font-weight: 600; }
+.search-fields { display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 12px; align-items: end; }
+.search-field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.search-field input, .search-field select { width: 100%; background: rgba(15,23,42,0.8); border: 1px solid rgba(59,130,246,0.2); color: white; padding: 12px 16px; border-radius: 10px; font-size: 14px; outline: none; }
+.search-field input:focus { border-color: var(--primary); }
+.search-btn { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; border: none; padding: 12px 32px; border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 700; white-space: nowrap; }
+
+/* STATS */
+.stats { display: flex; justify-content: center; gap: 64px; margin-top: 64px; padding: 0 24px; }
+.stat { text-align: center; }
+.stat-num { font-size: 36px; font-weight: 800; background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+/* DESTINATIONS */
+#destinations { padding: 100px 40px; }
+.section-header { text-align: center; margin-bottom: 64px; }
+.section-tag { display: inline-block; background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; }
+.section-title { font-size: clamp(28px, 4vw, 48px); font-weight: 800; }
+.section-title span { background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.destinations-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; max-width: 1200px; margin: 0 auto; }
+.dest-card { border-radius: 16px; overflow: hidden; background: var(--dark2); border: 1px solid rgba(59,130,246,0.15); cursor: pointer; transition: transform 0.3s, border-color 0.3s; }
+.dest-card:hover { transform: translateY(-8px); border-color: rgba(59,130,246,0.5); }
+.dest-img { height: 200px; background-size: cover; background-position: center; position: relative; }
+.dest-badge { position: absolute; top: 12px; right: 12px; background: rgba(15,23,42,0.9); color: #34d399; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+.dest-info { padding: 20px; }
+.dest-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.dest-country { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+.dest-price { font-size: 22px; font-weight: 800; color: #34d399; }
+.dest-price span { font-size: 13px; font-weight: 400; color: var(--muted); }
+
+/* FEATURES */
+#features { padding: 100px 40px; background: rgba(30,41,59,0.3); }
+.features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; max-width: 1200px; margin: 0 auto; }
+.feature-card { background: var(--dark2); border: 1px solid rgba(59,130,246,0.15); border-radius: 20px; padding: 32px; transition: border-color 0.3s; }
+.feature-card:hover { border-color: rgba(59,130,246,0.5); }
+.feature-icon { font-size: 40px; margin-bottom: 20px; }
+.feature-title { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+.feature-desc { color: var(--muted); line-height: 1.7; font-size: 14px; }
+
+/* AVATAR */
+#avatar-section { padding: 100px 40px; text-align: center; }
+.avatar-container { display: flex; align-items: center; gap: 64px; max-width: 1000px; margin: 0 auto; }
+.avatar-video { width: 300px; height: 400px; border-radius: 20px; background: var(--dark2); border: 2px solid rgba(59,130,246,0.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; position: relative; }
+.avatar-pulse { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(139,92,246,0.1)); animation: avatarPulse 3s ease-in-out infinite; }
+@keyframes avatarPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+.avatar-emoji { font-size: 80px; position: relative; z-index: 1; }
+.avatar-text { text-align: left; }
+.avatar-text h2 { font-size: 40px; font-weight: 800; margin-bottom: 20px; }
+.avatar-text p { color: var(--muted); line-height: 1.8; font-size: 16px; margin-bottom: 32px; }
+.avatar-langs { display: flex; flex-wrap: wrap; gap: 8px; }
+.lang-badge { background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); color: #60a5fa; padding: 6px 14px; border-radius: 20px; font-size: 12px; }
+
+/* FOOTER */
+footer { background: var(--dark2); border-top: 1px solid rgba(59,130,246,0.15); padding: 60px 40px 32px; }
+.footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; max-width: 1200px; margin: 0 auto 48px; }
+.footer-logo { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 16px; }
+.footer-desc { color: var(--muted); font-size: 14px; line-height: 1.7; }
+.footer-col h4 { font-weight: 700; margin-bottom: 20px; font-size: 15px; }
+.footer-col a { display: block; color: var(--muted); text-decoration: none; font-size: 14px; margin-bottom: 12px; transition: color 0.3s; }
+.footer-col a:hover { color: var(--text); }
+.footer-bottom { border-top: 1px solid rgba(59,130,246,0.1); padding-top: 32px; text-align: center; color: var(--muted); font-size: 13px; max-width: 1200px; margin: 0 auto; }
+
+/* RESULTS */
+#results { padding: 60px 40px; display: none; }
+.results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
+.result-card { background: var(--dark2); border: 1px solid rgba(59,130,246,0.2); border-radius: 16px; padding: 20px; }
+.result-card h3 { font-size: 16px; font-weight: 600; color: #60a5fa; margin-bottom: 8px; }
+.result-price { font-size: 24px; font-weight: 800; color: #34d399; }
+.result-info { color: var(--muted); font-size: 13px; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">🌍 Wanderix</div>
+  <div class="nav-links">
+    <a href="#destinations">Destinations</a>
+    <a href="#features">Features</a>
+    <a href="#avatar-section">AI Guide</a>
+    <a href="https://wanderix-production.up.railway.app/map" target="_blank">Map IA</a>
+  </div>
+  <button class="nav-cta">Get Started</button>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div id="map-bg"></div>
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span></span> AI-Powered Travel Platform • 65 Languages • Real-time Prices
+    </div>
+    <h1>Travel Smarter with <span>AI</span></h1>
+    <p class="hero-sub">Discover hotels, flights and car rentals at the best prices. Your AI guide Hélène speaks 65 languages and helps you plan the perfect trip.</p>
+
+    <!-- SEARCH -->
+    <div class="search-box">
+      <div class="search-tabs">
+        <button class="search-tab active" onclick="setTab('hotels', this)">🏨 Hotels</button>
+        <button class="search-tab" onclick="setTab('flights', this)">✈️ Flights</button>
+        <button class="search-tab" onclick="setTab('cars', this)">🚗 Cars</button>
+      </div>
+      <div id="search-hotels" class="search-fields">
+        <div class="search-field">
+          <label>Destination</label>
+          <input id="hotel-dest" type="text" placeholder="Marrakech, Paris..." value="marrakech"/>
+        </div>
+        <div class="search-field">
+          <label>Check-in</label>
+          <input id="hotel-checkin" type="date"/>
+        </div>
+        <div class="search-field">
+          <label>Check-out</label>
+          <input id="hotel-checkout" type="date"/>
+        </div>
+        <button class="search-btn" onclick="searchHotels()">Search</button>
+      </div>
+      <div id="search-flights" class="search-fields" style="display:none">
+        <div class="search-field">
+          <label>From</label>
+          <input id="flight-from" type="text" placeholder="Casablanca..." value="casablanca"/>
+        </div>
+        <div class="search-field">
+          <label>To</label>
+          <input id="flight-to" type="text" placeholder="Paris..." value="paris"/>
+        </div>
+        <div class="search-field">
+          <label>Date</label>
+          <input id="flight-date" type="date"/>
+        </div>
+        <button class="search-btn" onclick="searchFlights()">Search</button>
+      </div>
+      <div id="search-cars" class="search-fields" style="display:none">
+        <div class="search-field">
+          <label>Pick-up Location</label>
+          <input id="car-location" type="text" placeholder="Marrakech..." value="marrakech"/>
+        </div>
+        <div class="search-field">
+          <label>Pick-up Date</label>
+          <input id="car-pickup" type="date"/>
+        </div>
+        <div class="search-field">
+          <label>Drop-off Date</label>
+          <input id="car-dropoff" type="date"/>
+        </div>
+        <button class="search-btn" onclick="searchCars()">Search</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat"><div class="stat-num">65+</div><div class="stat-label">Languages Supported</div></div>
+  <div class="stat"><div class="stat-num">20+</div><div class="stat-label">Destinations</div></div>
+  <div class="stat"><div class="stat-num">1M+</div><div class="stat-label">Hotels Available</div></div>
+  <div class="stat"><div class="stat-num">24/7</div><div class="stat-label">AI Support</div></div>
+</div>
+
+<!-- RESULTS -->
+<div id="results">
+  <div class="section-header">
+    <h2 class="section-title" id="results-title">Search Results</h2>
+  </div>
+  <div class="results-grid" id="results-grid"></div>
+</div>
+
+<!-- DESTINATIONS -->
+<section id="destinations">
+  <div class="section-header">
+    <div class="section-tag">🌍 Top Destinations</div>
+    <h2 class="section-title">Explore the <span>World</span></h2>
+  </div>
+  <div class="destinations-grid">
+    <div class="dest-card" onclick="quickSearch('marrakech')">
+      <div class="dest-img" style="background-image:url('https://images.unsplash.com/photo-1539020140153-e479b8e8e5b0?w=400')">
+        <div class="dest-badge">From $120/night</div>
+      </div>
+      <div class="dest-info">
+        <div class="dest-name">Marrakech</div>
+        <div class="dest-country">🇲🇦 Morocco</div>
+        <div class="dest-price">$120 <span>/night</span></div>
+      </div>
+    </div>
+    <div class="dest-card" onclick="quickSearch('paris')">
+      <div class="dest-img" style="background-image:url('https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400')">
+        <div class="dest-badge">From $200/night</div>
+      </div>
+      <div class="dest-info">
+        <div class="dest-name">Paris</div>
+        <div class="dest-country">🇫🇷 France</div>
+        <div class="dest-price">$200 <span>/night</span></div>
+      </div>
+    </div>
+    <div class="dest-card" onclick="quickSearch('dubai')">
+      <div class="dest-img" style="background-image:url('https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=400')">
+        <div class="dest-badge">From $300/night</div>
+      </div>
+      <div class="dest-info">
+        <div class="dest-name">Dubai</div>
+        <div class="dest-country">🇦🇪 UAE</div>
+        <div class="dest-price">$300 <span>/night</span></div>
+      </div>
+    </div>
+    <div class="dest-card" onclick="quickSearch('barcelona')">
+      <div class="dest-img" style="background-image:url('https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=400')">
+        <div class="dest-badge">From $150/night</div>
+      </div>
+      <div class="dest-info">
+        <div class="dest-name">Barcelona</div>
+        <div class="dest-country">🇪🇸 Spain</div>
+        <div class="dest-price">$150 <span>/night</span></div>
+      </div>
+    </div>
+    <div class="dest-card" onclick="quickSearch('tokyo')">
+      <div class="dest-img" style="background-image:url('https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400')">
+        <div class="dest-badge">From $180/night</div>
+      </div>
+      <div class="dest-info">
+        <div class="dest-name">Tokyo</div>
+        <div class="dest-country">🇯🇵 Japan</div>
+        <div class="dest-price">$180 <span>/night</span></div>
+      </div>
+    </div>
+    <div class="dest-card" onclick="quickSearch('istanbul')">
+      <div class="dest-img" style="background-image:url('https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=400')">
+        <div class="dest-badge">From $100/night</div>
+      </div>
+      <div class="dest-info">
+        <div class="dest-name">Istanbul</div>
+        <div class="dest-country">🇹🇷 Turkey</div>
+        <div class="dest-price">$100 <span>/night</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-header">
+    <div class="section-tag">✨ Features</div>
+    <h2 class="section-title">Everything you need to <span>travel smarter</span></h2>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🤖</div>
+      <div class="feature-title">AI Travel Guide</div>
+      <div class="feature-desc">Hélène, your personal AI guide, speaks 65 languages and helps you plan the perfect trip with personalized recommendations.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🗺️</div>
+      <div class="feature-title">Interactive Map</div>
+      <div class="feature-desc">Explore hotels in real-time on an interactive map powered by Booking.com. See prices, ratings and availability instantly.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">✈️</div>
+      <div class="feature-title">Best Flight Prices</div>
+      <div class="feature-desc">Find the cheapest flights to any destination. Real-time prices from hundreds of airlines worldwide.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🏨</div>
+      <div class="feature-title">1M+ Hotels</div>
+      <div class="feature-desc">Access over 1 million hotels worldwide via Booking.com. Filter by price, stars, location and amenities.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🌍</div>
+      <div class="feature-title">65 Languages</div>
+      <div class="feature-desc">Wanderix speaks your language. Powered by OpenAI, we support 65 languages including Arabic, Chinese, Japanese and more.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🎬</div>
+      <div class="feature-title">Video Avatar</div>
+      <div class="feature-desc">Hélène presents your destinations with lip-sync video powered by D-ID AI technology. A truly immersive experience.</div>
+    </div>
+  </div>
+</section>
+
+<!-- AVATAR SECTION -->
+<section id="avatar-section">
+  <div class="section-header">
+    <div class="section-tag">🎬 Meet Your AI Guide</div>
+    <h2 class="section-title">Say hello to <span>Hélène</span></h2>
+  </div>
+  <div class="avatar-container">
+    <div class="avatar-video">
+      <div class="avatar-pulse"></div>
+      <div class="avatar-emoji">👩‍💼</div>
+    </div>
+    <div class="avatar-text">
+      <h2>Your personal <span style="background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">AI travel guide</span></h2>
+      <p>Hélène is powered by advanced AI and D-ID lip-sync technology. She speaks 65 languages, knows every destination, and is available 24/7 to help you plan the perfect trip.</p>
+      <div class="avatar-langs">
+        <span class="lang-badge">🇬🇧 English</span>
+        <span class="lang-badge">🇫🇷 Français</span>
+        <span class="lang-badge">🇸🇦 العربية</span>
+        <span class="lang-badge">🇪🇸 Español</span>
+        <span class="lang-badge">🇩🇪 Deutsch</span>
+        <span class="lang-badge">🇨🇳 中文</span>
+        <span class="lang-badge">🇯🇵 日本語</span>
+        <span class="lang-badge">+58 more</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-logo">🌍 Wanderix</div>
+      <p class="footer-desc">The world's first AI-powered travel platform. Find hotels, flights and cars at the best prices with your personal AI guide.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Product</h4>
+      <a href="#destinations">Destinations</a>
+      <a href="https://wanderix-production.up.railway.app/map" target="_blank">Map IA</a>
+      <a href="#features">Features</a>
+      <a href="#avatar-section">AI Guide</a>
+    </div>
+    <div class="footer-col">
+      <h4>Travel</h4>
+      <a href="#">Hotels</a>
+      <a href="#">Flights</a>
+      <a href="#">Car Rentals</a>
+      <a href="#">City Guides</a>
+    </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <a href="#">About</a>
+      <a href="#">Blog</a>
+      <a href="#">Careers</a>
+      <a href="#">Contact</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    © 2026 Wanderix. Built with ❤️ and AI. Powered by Booking.com, OpenAI & D-ID.
+  </div>
+</footer>
+
+<script>
+const API = 'https://wanderix-production.up.railway.app';
+const KEY = 'wanderix_internal_key';
+let activeTab = 'hotels';
+
+// Set default dates
+const today = new Date();
+const d1 = new Date(today); d1.setDate(today.getDate() + 7);
+const d2 = new Date(d1); d2.setDate(d1.getDate() + 3);
+const fmt = d => d.toISOString().split('T')[0];
+
+document.getElementById('hotel-checkin').value = fmt(d1);
+document.getElementById('hotel-checkout').value = fmt(d2);
+document.getElementById('flight-date').value = fmt(d1);
+document.getElementById('car-pickup').value = fmt(d1);
+document.getElementById('car-dropoff').value = fmt(d2);
+
+// Init map background
+const mapBg = L.map('map-bg', { zoomControl: false, dragging: false, scrollWheelZoom: false, attributionControl: false });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapBg);
+mapBg.setView([20, 0], 2);
+
+function setTab(tab, btn) {
+  activeTab = tab;
+  document.querySelectorAll('.search-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('search-hotels').style.display = tab === 'hotels' ? 'grid' : 'none';
+  document.getElementById('search-flights').style.display = tab === 'flights' ? 'grid' : 'none';
+  document.getElementById('search-cars').style.display = tab === 'cars' ? 'grid' : 'none';
+}
+
+async function searchHotels() {
+  const dest = document.getElementById('hotel-dest').value;
+  const checkin = document.getElementById('hotel-checkin').value;
+  const checkout = document.getElementById('hotel-checkout').value;
+  showLoading('Hotels');
+  try {
+    const res = await fetch(`${API}/hotels/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-key': KEY },
+      body: JSON.stringify({ destination: dest, checkin, checkout, adults: 2, language: 'en', currency: 'USD', limit: 6 })
+    });
+    const data = await res.json();
+    showHotels(data.hotels || []);
+  } catch(e) { showError(e.message); }
+}
+
+async function searchFlights() {
+  const from = document.getElementById('flight-from').value;
+  const to = document.getElementById('flight-to').value;
+  const date = document.getElementById('flight-date').value;
+  showLoading('Flights');
+  try {
+    const res = await fetch(`${API}/flights/search?origin=${from}&destination=${to}&date=${date}&adults=1&currency=USD`, {
+      headers: { 'x-internal-key': KEY }
+    });
+    const data = await res.json();
+    showFlights(data.flights || []);
+  } catch(e) { showError(e.message); }
+}
+
+async function searchCars() {
+  const loc = document.getElementById('car-location').value;
+  const pickup = document.getElementById('car-pickup').value;
+  const dropoff = document.getElementById('car-dropoff').value;
+  showLoading('Cars');
+  try {
+    const res = await fetch(`${API}/cars/search?pickup_location=${loc}&pickup_date=${pickup}&pickup_time=10:00&dropoff_date=${dropoff}&dropoff_time=10:00&driver_age=30&currency=USD`, {
+      headers: { 'x-internal-key': KEY }
+    });
+    const data = await res.json();
+    showCars(data.cars || []);
+  } catch(e) { showError(e.message); }
+}
+
+function quickSearch(dest) {
+  document.getElementById('hotel-dest').value = dest;
+  setTab('hotels', document.querySelectorAll('.search-tab')[0]);
+  searchHotels();
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showLoading(type) {
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results-title').textContent = `Searching ${type}...`;
+  document.getElementById('results-grid').innerHTML = '<div style="color:#94a3b8;grid-column:1/-1;text-align:center;padding:40px">🔍 Searching real-time prices...</div>';
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showHotels(hotels) {
+  document.getElementById('results-title').textContent = `🏨 ${hotels.length} Hotels Found`;
+  document.getElementById('results-grid').innerHTML = hotels.map(h => `
+    <div class="result-card">
+      <h3>${h.name || 'Hotel'}</h3>
+      <div class="result-info">⭐ ${h.rating || 0} • ${h.city || ''}</div>
+      <div class="result-price">$${h.price_per_night || 0}<span style="font-size:13px;color:#94a3b8">/night</span></div>
+      <div class="result-info" style="margin-top:8px">📍 ${h.address || ''}</div>
+      ${h.url ? `<a href="${h.url}" target="_blank" style="display:block;margin-top:12px;background:#3b82f6;color:white;text-align:center;padding:8px;border-radius:8px;text-decoration:none;font-size:13px">Book Now →</a>` : ''}
+    </div>
+  `).join('') || '<div style="color:#94a3b8;grid-column:1/-1;text-align:center;padding:40px">No results found</div>';
+}
+
+function showFlights(flights) {
+  document.getElementById('results-title').textContent = `✈️ ${flights.length} Flights Found`;
+  document.getElementById('results-grid').innerHTML = flights.map(f => `
+    <div class="result-card">
+      <h3>${f.origin?.city || ''} → ${f.destination?.city || ''}</h3>
+      <div class="result-info">${f.carriers?.join(', ') || ''} • ${f.stops === 0 ? 'Direct' : f.stops + ' stop(s)'}</div>
+      <div class="result-price">$${f.price || 0}</div>
+      <div class="result-info" style="margin-top:8px">⏱ ${f.duration || ''} • ${f.departure?.substring(11,16) || ''} → ${f.arrival?.substring(11,16) || ''}</div>
+      ${f.is_cheapest ? '<span style="background:#22c55e22;color:#22c55e;padding:4px 10px;border-radius:20px;font-size:12px;margin-top:8px;display:inline-block">✅ Cheapest</span>' : ''}
+    </div>
+  `).join('') || '<div style="color:#94a3b8;grid-column:1/-1;text-align:center;padding:40px">No flights found</div>';
+}
+
+function showCars(cars) {
+  document.getElementById('results-title').textContent = `🚗 ${cars.length} Cars Found`;
+  document.getElementById('results-grid').innerHTML = cars.map(c => `
+    <div class="result-card">
+      <h3>${c.name || 'Car'}</h3>
+      <div class="result-info">👥 ${c.seats || 5} seats • ${c.transmission || 'automatic'}</div>
+      <div class="result-price">$${c.price_per_day || 0}<span style="font-size:13px;color:#94a3b8">/day</span></div>
+      <div class="result-info" style="margin-top:8px">${c.supplier || ''} ${c.free_cancellation ? '• ✅ Free cancellation' : ''}</div>
+    </div>
+  `).join('') || '<div style="color:#94a3b8;grid-column:1/-1;text-align:center;padding:40px">No cars found</div>';
+}
+
+function showError(msg) {
+  document.getElementById('results-grid').innerHTML = `<div style="color:#ef4444;grid-column:1/-1;text-align:center;padding:40px">❌ ${msg}</div>`;
+}
+</script>
+</body>
+</html>
