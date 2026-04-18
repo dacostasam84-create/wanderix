@@ -148,7 +148,11 @@ async def map_page():
     map_path = os.path.join(os.path.dirname(__file__), "static", "map.html")
     with open(map_path, "r", encoding="utf-8") as f:
         return f.read()
-
+@app.get("/landing", response_class=HTMLResponse)
+async def landing_page():
+    landing_path = os.path.join(os.path.dirname(__file__), "..", "landing", "index.html")
+    with open(landing_path, "r", encoding="utf-8") as f:
+        return f.read()
 @app.post("/ai/itinerary")
 async def generate_itinerary(req: ItineraryRequest, _: str = Depends(verify_internal_key)):
     try:
