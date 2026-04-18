@@ -15,6 +15,7 @@ from core.voice_ai import VoiceAIService
 from core.vision_ai import VisionAIService
 from core.map_service import MapService
 from core.flights_search import FlightsSearchService
+from core.cars_search import CarsSearchService
 import anthropic
 
 logging.basicConfig(level=logging.INFO)
@@ -35,6 +36,7 @@ voice_service = VoiceAIService()
 vision_service = VisionAIService()
 map_service = MapService()
 flights_service = FlightsSearchService()
+cars_service = CarsSearchService()
 def verify_internal_key(x_internal_key: str = Header(...)):
     expected = os.environ.get("INTERNAL_API_KEY")
     if x_internal_key != expected:
@@ -396,3 +398,30 @@ async def get_price_calendar(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/cars/search")
+async def search_cars(
+    pickup_location: str,
+    pickup_date: str,
+    pickup_time: str,
+    dropoff_date: str,
+    dropoff_time: str,
+    dropoff_location: Optional[str] = None,
+    driver_age: int = 30,
+    currency: str = "USD",
+    _: str = Depends(verify_internal_key),
+):
+    try:
+        return await cars_service.search_cars(
+            pickup_location=pickup_location,
+            pickup_date=pickup_date,
+            pickup_time=pickup_time,
+            dropoff_date=dropoff_date,
+            dropoff_time=dropoff_time,
+            dropoff_location=dropoff_location,
+            driver_age=driver_age,
+            currency=currency,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))    
+    
